@@ -199,7 +199,13 @@ class Agent(object):
             # ------------------------------------------------------------------
             # START OF YOUR CODE
             # ------------------------------------------------------------------
-            sy_sampled_ac = sy_mean + (tf.exp(sy_logstd)*tf.random.normal(shape=tf.shape(sy_mean),0,1))
+            #sy_logstd = tf.Variable(tf.zeros([1, ac_dim], name = 'logstd'))
+            #sy_std = tf.exp(sy_logstd)
+            #sy_z_sampled = tf.random_normal(tf.shape(sy_mean))
+            #sy_sampled_ac = sy_mean + sy_std * sy_z_sampled
+
+            sy_sampled_ac = sy_mean + tf.exp(sy_logstd)*tf.random.normal(tf.shape(sy_mean))
+
             # ------------------------------------------------------------------
             # END OF YOUR CODE
             # ------------------------------------------------------------------
