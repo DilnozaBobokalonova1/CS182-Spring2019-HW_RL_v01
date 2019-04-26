@@ -150,7 +150,9 @@ class Agent(object):
             # START OF YOUR CODE
             # ------------------------------------------------------------------
             sy_mean = build_mlp(input_placeholder=sy_ob_no, output_size = self.ac_dim, scope = "cont", n_layers=self.n_layers, size=self.size)
-            sy_logstd = tf.Variable(tf.zeros((1,self.ac_dim)))
+            #sy_logstd = tf.Variable(tf.zeros((1,self.ac_dim)))
+            #sy_logstd = tf.Variable(tf.ones([1, self.ac_dim], name = 'logstd'))
+            sy_logstd = tf.Variable(tf.zeros([1, self.ac_dim], name = 'logstd'))
             # ------------------------------------------------------------------
             # END OF YOUR CODE
             # ------------------------------------------------------------------
@@ -204,7 +206,7 @@ class Agent(object):
             #sy_z_sampled = tf.random_normal(tf.shape(sy_mean))
             #sy_sampled_ac = sy_mean + sy_std * sy_z_sampled
 
-            sy_sampled_ac = sy_mean + tf.exp(sy_logstd)*tf.random.normal(tf.shape(sy_mean))
+            sy_sampled_ac = sy_mean + tf.exp(sy_logstd)*tf.random_normal(tf.shape(sy_mean))
 
             # ------------------------------------------------------------------
             # END OF YOUR CODE
@@ -252,7 +254,7 @@ class Agent(object):
             # ------------------------------------------------------------------
             # START OF YOUR CODE
             # ------------------------------------------------------------------
-            sy_logprob_n = tf.distributions.Normal(loc = sy_mean, scale = sy_logstd).log_prob(sy_ac_na)
+            sy_logprob_n = tf.distributions.Normal(loc = sy_mean, scale = tf.exp(sy_logstd)).log_prob(sy_ac_na)
             # ------------------------------------------------------------------
             # END OF YOUR CODE
             # ------------------------------------------------------------------
@@ -339,12 +341,14 @@ class Agent(object):
             #self.policy_parameters = self.policy_forward_pass(self.sy_ob_no)
             #self.sy_sampled_ac = self.sample_action(self.policy_parameters)
             #ac = self.sy_sampled_ac
-            ac = sess.run(self.sy_sampled_ac, feed_dict={self.sy_ob_no : ob[None]})
+            ac = self.sess.run(self.sy_sampled_ac, feed_dict={self.sy_ob_no : ob[None]})
             # ------------------------------------------------------------------
             # END OF YOUR CODE
             # ------------------------------------------------------------------
             ac = ac[0]
             acs.append(ac)
+            #print(type(ac))
+            #print(ac)
             ob, rew, done, _ = env.step(ac)
             rewards.append(rew)
             steps += 1
@@ -421,20 +425,31 @@ class Agent(object):
         # START OF YOUR CODE
         # ------------------------------------------------------------------
         q_n = []
+        
         if self.reward_to_go:
             
-            for path in num_paths:
-                q = np.zeros(pathlength(path))
-                q[-1] = path['reward'][-1]
-                for i in reversed(range(pathlength(path) - 1)):
-                    q[i] = path['reward'][i] + gamma * q[i+1]
+            #for path in num_paths:
+            for path in re_n:
+                q = np.zeros(len(path))
+                #q = np.zeros(pathlength(path))
+                #q[-1] = path['reward'][-1]
+                q[-1] = path[-1]
+                #for i in reversed(range(pathlength(path) - 1)):
+                for i in reversed(range(len(path)-1)):
+                    q[i] = path[i] + self.gamma*q[i+1]
+                    #q[i] = path['reward'][i] + gamma * q[i+1]
                 q_n.extend(q)
         else: 
-            for path in num_paths: 
+            #for path in num_paths: 
+            for path in re_n:
                 ret_tau = 0
-                for i in range(pathlength(path)):
-                    ret_tau += (gamma ** i) * path['reward'][i]
-                q = np.ones(shape = [pathlength(path)]) * ret_tau
+                #print(type(path))
+                #for i in range(pathlength(path)):
+                for i in range(len(path)):
+                    ret_tau += (self.gamma**i) * path[i]
+                    #ret_tau += (gamma ** i) * path['reward'][i]
+                #q = np.ones(shape = [pathlength(path)]) * ret_tau
+                q = np.ones(shape=[len(path)])*ret_tau
                 q_n.extend(q)
         # ------------------------------------------------------------------
         # END OF YOUR CODE
@@ -518,9 +533,9 @@ class Agent(object):
         # ------------------------------------------------------------------
         # START OF YOUR CODE
         # ------------------------------------------------------------------
-        _, loss_after = sess.run([self.update_op, self.loss],feed_dict = {self.sy_ob_no : ob_no, self.sy_ac_na : ac_na, self.sy_adv_n : adv_n})
-        print(loss_after.shape)
-
+        _, loss_after = self.sess.run([self.update_op, self.loss],feed_dict = {self.sy_ob_no : ob_no, self.sy_ac_na : ac_na, self.sy_adv_n : adv_n})
+        #print(loss_after.shape)
+'''
         # Log diagnostics
         returns = [path["reward"].sum() for path in paths]
         ep_lengths = [pathlength(path) for path in paths]
@@ -536,7 +551,7 @@ class Agent(object):
         logz.log_tabular("TimestepsSoFar", total_timesteps)
         logz.log_tabular("After-Loss", loss_after)
         logz.dump_tabular()
-        logz.pickle_tf_vars()
+        logz.pickle_tf_vars()'''
         # ------------------------------------------------------------------
         # END OF YOUR CODE
         # ------------------------------------------------------------------

@@ -337,7 +337,8 @@ class QLearner(object):
             # ------------------------------------------------------------------
             obs_batch, act_batch, rew_batch, next_obs_batch, done_batch = self.replay_buffer.sample(self.batch_size)
 
-            if not model_initialized:
+            if not self.model_initialized:
+                '''
                 vars_left = tf.global_variables()
                 while len(vars_left) > 0:
                     new_vars_left = []
@@ -346,8 +347,9 @@ class QLearner(object):
                             feed_dict = {self.obs_t_ph: obs_batch, self.obs_tp1_ph: next_obs_batch,}
                             self.session.run(tf.variables_initializer([v]), feed_dict)
                         except tf.errors.FailedPreconditionError:
-                            new_vars_left.append(v)
-                model_initialized = True
+                            new_vars_left.append(v)'''
+                self.model_initialized = True
+                self.session.run(tf.global_variables_initializer())
 
             self.session.run(self.train_fn, {
                 self.obs_t_ph: obs_batch,
