@@ -175,21 +175,21 @@ class QLearner(object):
         # defining `self.total_error`. If you are using double DQN, modify your
         # code here to support that and normal (i.e., non-double) DQN.
         # ----------------------------------------------------------------------
-        self.qval = q_func(obs_t_float, self.num_actions, scope = "q_func", reuse = False)
-        self.next_qval = q_func(obs_tp1_float, self.num_actions, scope = "target_q_func", reuse = False)
+        self.q_t = q_func(obs_t_float, self.num_actions, scope = "q_func", reuse = False)
+        self.next_qt = q_func(obs_tp1_float, self.num_actions, scope = "target_q_func", reuse = False)
 
-        if double_q:
-            best_act = tf.argmax(q_func(obs_tp1_float, self.num_actions, scope = "q_func", reuse = True), axis = 1) #Use reuse=true only for double-q learning
-            max_qval = tf.reduce_sum(tf.multiply(self.next_qval, tf.one_hot(indices = best_act, depth = self.num_actions)), axis = 1)
+        if not double_q:
+            max_q_t = tf.reduce_max(self.next_qt, axis = 1)
         else:
-            max_qval = tf.reduce_max(self.next_qval, axis = 1)
+            best_action = tf.argmax(q_func(obs_tp1_float, self.num_actions, scope = "q_func", reuse = True), axis = 1)
+            max_q_t = tf.reduce_sum(tf.multiply(self.next_qt, tf.one_hot(indices = best_action, depth = self.num_actions)), axis = 1)
 
-        y = self.rew_t_ph + gamma * (1 - self.done_mask_ph) * max_qval
-        current_qvalue = tf.reduce_sum(tf.multiply(self.qval, tf.one_hot(indices = self.act_t_ph, depth = self.num_actions)), axis = 1)
-        self.total_error = tf.reduce_mean(huber_loss(current_qvalue - y))
+        y = self.rew_t_ph + gamma * (1 - self.done_mask_ph) * max_q_t
+        curr_q_t = tf.reduce_sum(tf.multiply(self.q_t, tf.one_hot(indices = self.act_t_ph, depth = self.num_actions)), axis = 1)
+        self.total_error = tf.reduce_mean(huber_loss(curr_q_t - y))
 
-        q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope = 'q_func')
         target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope = 'target_q_func')
+        q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope = 'q_func')
 
         # Construct optimization op (with gradient clipping).
         self.learning_rate = tf.placeholder(tf.float32, (), name="learning_rate")
@@ -265,21 +265,48 @@ class QLearner(object):
         initialized; but of course, the first step might as well be random,
         since you haven't trained your net...
         """
+        # ----------------------------------------------------------------------
+        # START OF YOUR CODE
+        # ----------------------------------------------------------------------
         idx = self.replay_buffer.store_frame(self.last_obs)
         if not self.model_initialized or np.random.uniform() < self.exploration.value(self.t):
-            ac = self.env.action_space.sample()
+            act = self.env.action_space.sample()
         else:
-            ecd = self.replay_buffer.encode_recent_observation()
-            decoded_q = self.session.run(self.qval, feed_dict = {self.obs_t_ph: np.expand_dims(ecd, axis = 0)})
-            ac = np.argmax(decoded_q[0, :])
+            obs = self.replay_buffer.encode_recent_observation()
+            actions = self.session.run(self.q_t, feed_dict = {self.obs_t_ph: np.expand_dims(obs, axis = 0)})
+            act = np.argmax(actions[0, :])
     
-        obs, reward, done, info = self.env.step(ac)
-        self.last_obs = obs
-        self.replay_buffer.store_effect(idx, ac, reward, done)
+        next_obs, rew, done, _ = self.env.step(act)
+        self.last_obs = next_obs
+        self.replay_buffer.store_effect(idx, act, rew, done)
 
         if done:
             self.last_obs = self.env.reset()
+        '''if done:
+            obs = self.env.reset()
 
+        self.last_obs = obs
+        '''
+        '''
+        idx = self.replay_buffer.store_frame(self.last_obs)
+
+        if not self.model_initialized:
+            action = random.randint(0, self.num_actions - 1)
+        else:
+            obs = self.replay_buffer.encode_recent_observation()
+            action = self.session.run(self.best_action, feed_dict = {self.obs_t_ph: [obs]})
+            if random.random() < self.exploration.value(self.t) * self.num_actions / (self.num_actions - 1):
+                action = random.randint(0, self.num_actions - 1)
+        
+        next_obs, reward, done, _ = self.env.step(action)
+        self.replay_buffer.store_effect(idx, action, reward, done)
+        if done:
+            self.last_obs = self.env.reset()
+        else:
+            self.last_obs = next_obs'''
+        # ----------------------------------------------------------------------
+        # END OF YOUR CODE
+        # ----------------------------------------------------------------------
 
     def update_model(self):
         """Perform experience replay and train the network.
@@ -320,16 +347,21 @@ class QLearner(object):
         if (self.t > self.learning_starts and \
             self.t % self.learning_freq == 0 and \
             self.replay_buffer.can_sample(self.batch_size)):
-
+            # ------------------------------------------------------------------
+            # START OF YOUR CODE
+            # ------------------------------------------------------------------
             obs_batch, act_batch, rew_batch, next_obs_batch, done = self.replay_buffer.sample(self.batch_size)
             if not self.model_initialized:
                 self.session.run(tf.variables_initializer(tf.global_variables()), feed_dict = {self.obs_t_ph: obs_batch, self.obs_tp1_ph: next_obs_batch})
                 self.model_initialized = True
-
             self.session.run(self.train_fn, feed_dict = {self.obs_t_ph: obs_batch, self.act_t_ph: act_batch, self.rew_t_ph: rew_batch, self.obs_tp1_ph: next_obs_batch, self.done_mask_ph: done, self.learning_rate: self.optimizer_spec.lr_schedule.value(self.t)})
             if(self.num_param_updates % self.target_update_freq == 0):
                 self.session.run(self.update_target_fn)
+            # ------------------------------------------------------------------
+            # END OF YOUR CODE
+            # ------------------------------------------------------------------
             self.num_param_updates += 1
+
         self.t += 1
 
 
