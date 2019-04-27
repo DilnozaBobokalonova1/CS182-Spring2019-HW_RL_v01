@@ -1,0 +1,2 @@
+Steps	Avg_Last_100_Episodes	Std_Last_100_Episodes	Best_Avg_100_Episodes	Num_Episodes	Exploration_Epsilon	Adam_Learning_Rate	Elapsed_Time_Hours
+1000	22.22222222222222	11.875069850346872	-inf	45	0.982	0.0005	2.3559596803453234e-05
